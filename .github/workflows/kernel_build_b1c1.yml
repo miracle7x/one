@@ -142,27 +142,21 @@ jobs:
           echo "Copied ${ZIP_NAME} as $ZIP_ALTERNATIVE"
           echo "ZIP_ALTERNATIVE=$ZIP_ALTERNATIVE" >> $GITHUB_ENV
 
-      - name: 📤 Publish github release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ env.ZIP_ALTERNATIVE }}
-          tag_name: "latest"
-          draft: false
-          prerelease: false
-
-      - name: 📤 Publish with tag associated to the kernel and the date
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ env.ZIP_NAME }}
-          tag_name: Kernel-Caelum-${{ env.DEVICE_CODENAME }}-${{ env.KERNEL_VERSION }}-${{ env.DATE }}
-          draft: false
-          prerelease: false
-
-      - name: 🚀 Notify people on Discord
-        env:
-          DEVICE_CODENAME: ${{ env.DEVICE_CODENAME }}
-          KERNEL_VERSION: ${{ env.KERNEL_VERSION }}
-          WEBHOOK: ${{ secrets.WEBHOOK }}
-          NAME: ${{ env.ZIP_NAME }}
+      - name: 🚀 Copy the compiled kernel to AnyKernel3 then create the zip
         run: |
-          python3 .github/webhook.py
+          cd kernel_xiaomi_msm8953
+          ZIP_NAME="Kernel-Caelum-${DEVICE_CODENAME}-${KERNEL_VERSION}-$(date +%d%m%Y).zip"
+
+          cp out/arch/arm64/boot/Image.gz-dtb anykernel/
+
+          cd anykernel && zip -r9 $ZIP_NAME ./*
+          mv $ZIP_NAME ../../
+
+          echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
+
+      - name: 📤 Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-Caelum-${{ env.DEVICE_CODENAME }}-${{ env.KERNEL_VERSION }}-${{ env.DATE }}
+          path: ${{ env.ZIP_NAME }}
+          if-no-files-found: error
