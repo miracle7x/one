@@ -19,7 +19,7 @@ jobs:
 
       - name: ⚡ Checkout kernel's sourcecode and clone submodules
         run: |
-          git clone --depth=1 https://github.com/miracle7x/kernel_xiaomi_msm8953/ -b vic
+          git clone --depth=1 https://github.com/miracle7x/kernel_xiaomi_msm8953/ -b master
 
       - name: 📅 Export date of build
         run: |
@@ -28,9 +28,8 @@ jobs:
       - name: 🔄 Update KernelSU
         run: |
           cd kernel_xiaomi_msm8953
-          rm -rf KernelSU
-          git clone --depth=1 https://github.com/manipvlator/KernelSU -b main
-          git clone --depth=1 https://github.com/maxsteeel/nomount -b master
+          rm -rf KernelSU-Next
+          git clone --depth=1 https://github.com/KernelSU-Next/KernelSU-Next -b legacy
 
       - name: 📥 Clone AnyKernel3
         run: |
