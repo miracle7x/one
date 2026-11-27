@@ -1,0 +1,175 @@
+name: Build for Vince Test
+
+on:
+  push:
+    branches:
+      - vince
+  pull_request:
+    branches:
+      - vince
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: 📂 Checkout builder's sourcecode and get files
+        uses: actions/checkout@v4
+
+      - name: ⚡ Checkout kernel's sourcecode and clone submodules
+        run: |
+          git clone --depth=1 https://github.com/miracle7x/kernel_xiaomi_msm8953/ -b master
+
+      - name: 📅 Export date of build
+        run: |
+          echo "DATE=$(date +%d%m%Y)" >> $GITHUB_ENV
+
+      - name: 📥 Clone AnyKernel3
+        run: |
+          cd kernel_xiaomi_msm8953
+          git clone --depth=1 -b vince https://github.com/Oneloutre/AnyKernel3.git anykernel
+          rm -rf anykernel/.git
+
+      - name: 📦 Install dépendencies
+        run: |
+          sudo apt-get update -y -qq
+          sudo apt-get install -y --no-install-recommends \
+          python3-pip \
+          git \
+          zip \
+          unzip \
+          gcc \
+          g++ \
+          make \
+          ninja-build \
+          file \
+          bc \
+          bison \
+          flex \
+          libfl-dev \
+          libssl-dev \
+          libelf-dev \
+          wget \
+          build-essential \
+          python3-dev \
+          python3-setuptools \
+          rsync \
+          ccache \
+          llvm-dev \
+          gcc-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi \
+          binutils-aarch64-linux-gnu \
+          device-tree-compiler \
+          libncurses-dev \
+          android-sdk-libsparse-utils
+
+      - name: 🔧 Install Clang from a Github action
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "18.1.8"
+          directory: ${{ runner.temp }}/llvm
+
+      - name: 🔧 Add Clang to the PATH
+        run: |
+          echo "${{ runner.temp }}/llvm/bin" >> $GITHUB_PATH
+
+      - name: 🛠 Use repo's mkdtimg
+        run: |
+          chmod +x tools/mkdtimg
+          sudo mv tools/mkdtimg /usr/local/bin/mkdtimg
+
+      - name: 🔍 Device's codename and kernel's version
+        run: |
+          cd kernel_xiaomi_msm8953
+          DEVICE_CODENAME=vince
+          KERNEL_VERSION=$(make kernelversion | grep -E '^[0-9]+\.[0-9]+\.[0-9]+')
+
+          echo "Device Codename: $DEVICE_CODENAME"
+          echo "Kernel Version: $KERNEL_VERSION"
+
+          echo "DEVICE_CODENAME=$DEVICE_CODENAME" >> $GITHUB_ENV
+          echo "KERNEL_VERSION=$KERNEL_VERSION" >> $GITHUB_ENV
+
+      - name: 🔑 Setup KernelSU + NoMount
+        run: |
+          cd kernel_xiaomi_msm8953
+          curl -LSs "https://raw.githubusercontent.com/manipvlator/KernelSU/refs/heads/main/kernel/setup.sh" | bash -s main
+          curl -LSs "https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh" | bash -s master
+
+      - name: 🩹 Fix SUSFS symbols (kernel tanpa patch SUSFS)
+        run: |
+          cd kernel_xiaomi_msm8953
+          OBS=drivers/kernelsu/manager/pkg_observer.c
+          if [ -f "$OBS" ] && ! grep -rqE "susfs_parse_priority_app_strings" include/ fs/ 2>/dev/null; then
+            echo "Helper SUSFS tidak ada di kernel -> pemanggilan di KernelSU dinonaktifkan"
+            sed -i -E 's/^([[:space:]]*)susfs_parse_(priority|sus_path)_app_strings\(.*$/\1;/' "$OBS"
+          fi
+          echo "--- sisa referensi susfs_parse di pkg_observer.c ---"
+          grep -n "susfs_parse" "$OBS" || true
+
+      - name: 🚀 Enable ccache to speed the build up
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          max-size: 7G
+
+      - name: 🛠️ Build the kramel
+        run: |
+          cd kernel_xiaomi_msm8953
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export KBUILD_COMPILER_STRING=$(clang --version | head -n 1)
+          export CCACHE_EXEC=$(which ccache)
+          export KBUILD_BUILD_HOST="cappuccino-build"
+
+          MAKE_ARGS=(
+            O=out
+            ARCH=arm64
+            CC="ccache clang"
+            LD=ld.lld
+            AR=llvm-ar
+            NM=llvm-nm
+            OBJCOPY=llvm-objcopy
+            OBJDUMP=llvm-objdump
+            STRIP=llvm-strip
+            LLVM=1
+            LLVM_IAS=1
+            CLANG_TRIPLE=aarch64-linux-gnu-
+            CROSS_COMPILE=aarch64-linux-gnu-
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+          )
+
+          make "${MAKE_ARGS[@]}" vendor/vince_defconfig vendor/kernelsu.config
+
+          # SUSFS tidak dipakai (workflow ini pakai NoMount), pastikan config-nya mati
+          ./scripts/config --file out/.config -d KSU_SUSFS || true
+
+          make "${MAKE_ARGS[@]}" olddefconfig
+          make -j$(nproc --all) "${MAKE_ARGS[@]}"
+
+      - name : 🚀 Copy the compiled kernel to AnyKernel3 then create the zip
+        run: |
+          cd kernel_xiaomi_msm8953
+          ZIP_NAME="Kernel-Caelum-${DEVICE_CODENAME}-${KERNEL_VERSION}-$(date +%d%m%Y).zip"
+
+          cp out/arch/arm64/boot/Image.gz-dtb anykernel/
+
+          cd anykernel && zip -r9 $ZIP_NAME ./*
+          mv $ZIP_NAME ../../
+
+          echo "ZIP_NAME=$ZIP_NAME" >> $GITHUB_ENV
+
+      - name: 🤌 Copy zip file to get 2 different zip files
+        run: |
+          ZIP_ALTERNATIVE="KernelSU-Caelum-${DEVICE_CODENAME}-latest.zip"
+          cp ${ZIP_NAME} $ZIP_ALTERNATIVE
+
+          echo "Copied ${ZIP_NAME} as $ZIP_ALTERNATIVE"
+          echo "ZIP_ALTERNATIVE=$ZIP_ALTERNATIVE" >> $GITHUB_ENV
+
+      - name: 📤 Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-Caelum-${{ env.DEVICE_CODENAME }}-${{ env.KERNEL_VERSION }}-${{ env.DATE }}
+          path: ${{ env.ZIP_NAME }}
+          if-no-files-found: error
