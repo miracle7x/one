@@ -110,16 +110,21 @@ jobs:
           export KBUILD_BUILD_HOST="runner-build"
 
           make O=out ARCH=arm64 tissot_defconfig
+          
           make O=out ARCH=arm64 olddefconfig
           make -j$(nproc --all) O=out \
-          ARCH=arm64 \
-          CC="ccache clang" \
-          LLVM=1 \
-          LLVM_IAS=1 \
-          CLANG_TRIPLE=aarch64-linux-gnu- \
-          CROSS_COMPILE=aarch64-linux-android- \
-          CROSS_COMPILE_ARM32=arm-linux-androideabi-
-
+            ARCH=arm64 \
+            CC="ccache clang" \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+            
       - name : compiled kernel to AnyKernel3 then create the zip
         run: |
           cd kernel_xiaomi_tissot_another_kernel
