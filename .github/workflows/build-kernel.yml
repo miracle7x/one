@@ -97,9 +97,15 @@ jobs:
       - name: Setup KernelSU
         run: |
           cd kernel_xiaomi_tissot_another_kernel
-          curl -LSs "https://raw.githubusercontent.com/JBHPocong/BakaSU/main/kernel/setup.sh" | bash 
+          curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash 
           curl "https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh" | bash -s master
 
+      - name: Apply KernelSU manual hooks
+        run: |
+          cd kernel_xiaomi_tissot_another_kernel
+          bash ../tools/apply-ksu-manual-hooks.sh
+          grep -n "ksu_handle" fs/exec.c fs/open.c fs/read_write.c fs/stat.c drivers/input/input.c
+          
       - name: Build the kramel
         run: |
           cd kernel_xiaomi_tissot_another_kernel
