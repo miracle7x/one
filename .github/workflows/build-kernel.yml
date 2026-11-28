@@ -97,7 +97,7 @@ jobs:
       - name: Setup KernelSU
         run: |
           cd kernel_xiaomi_tissot_another_kernel
-          curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash 
+          curl -LSs "https://raw.githubusercontent.com/JBHPocong/BakaSU/main/kernel/setup.sh" | bash 
           curl "https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh" | bash -s master
 
       - name: Build the kramel
