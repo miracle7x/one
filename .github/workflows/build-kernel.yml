@@ -98,7 +98,7 @@ jobs:
         run: |
           cd kernel_xiaomi_tissot_another_kernel
           curl -LSs "https://raw.githubusercontent.com/manipvlator/KernelSU/refs/heads/main/kernel/setup.sh" | bash -s main
-          curl -LSs "https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh" | bash -s master
+          curl "https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/dev/kernel/setup.sh" | bash -s master
 
       - name: Build the kramel
         run: |
@@ -109,7 +109,7 @@ jobs:
           export CCACHE_EXEC=$(which ccache)
           export KBUILD_BUILD_HOST="runner-build"
 
-          make O=out ARCH=arm64 tissot_defconfig V=1
+          make O=out ARCH=arm64 tissot_defconfig
           make O=out ARCH=arm64 olddefconfig
           make -j$(nproc --all) O=out \
           ARCH=arm64 \
@@ -122,7 +122,7 @@ jobs:
 
       - name : compiled kernel to AnyKernel3 then create the zip
         run: |
-          cd NON-perf
+          cd kernel_xiaomi_tissot_another_kernel
           ZIP_NAME="Ast-${DEVICE_CODENAME}-${KERNEL_VERSION}-$(date +%d%m%Y).zip"
 
           cp out/arch/arm64/boot/Image.gz-dtb anykernel/
